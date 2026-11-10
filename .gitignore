@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Data (not part of the repository)
+data/
+xrays/
+masks/
+masks_original_backup/
+CSVs/
+
+# Model weights and bulky outputs
+*.pt
+*.pth
+outputs/predictions/
+
+# Archives and OS / editor files
+*.zip
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

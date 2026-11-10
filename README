@@ -1,0 +1,102 @@
+# Femur Segmentation in Knee X-ray Images (U-Net)
+
+Binary segmentation of the femur in knee X-ray images with a U-Net, written in PyTorch.
+Course project (CNNs): 150 X-rays, of which 100 were manually annotated and 50 are an
+unlabeled test set.
+
+## Project structure
+
+| File | Purpose |
+|---|---|
+| `args.py` | Command-line arguments: directories, epochs, learning rate, model size, fine-tuning options |
+| `dataset.py` | Image/mask reading function and the `FemurDataset` class (with light augmentation) |
+| `model.py` | U-Net definition (Aleksei Tiulpin's U-Net, provided in the course) |
+| `utils.py` | Dice loss and Dice score (provided in the course) |
+| `trainer.py` | Model initialization, training loop, validation loop, checkpointing, training curves |
+| `main.py` | Builds the data loaders and starts training |
+| `evaluate.py` | Final evaluation: Dice score, predicted masks and example visualizations |
+
+## Data
+
+The data is not included in this repository. Expected layout (the folder passed as `--data_dir`):
+
+```
+<data_dir>/
+ ├── xrays/    X-ray images (png / jpg)
+ ├── masks/    binary masks, values 0 = background, 1 = femur
+ └── CSVs/     dataset.csv, train.csv, val.csv, test.csv
+```
+
+Each CSV has two columns, `xrays` and `masks`, with paths relative to `<data_dir>`.
+The 50 test images have `None` in the `masks` column.
+
+- `dataset.csv`: all 150 images
+- `train.csv` / `val.csv`: random 80 / 20 split of the 100 labeled images (seed 42)
+- `test.csv`: the 50 unlabeled images
+
+Masks made in Photopea (values 0/255) were converted to 0/1 so that all masks match the
+Roboflow-labeled ones.
+
+## Setup
+
+```
+pip install torch pillow numpy pandas matplotlib
+```
+
+For a GPU, install the CUDA build of PyTorch from https://pytorch.org (the default pip
+build can be CPU-only on Windows). Check with
+`python -c "import torch; print(torch.cuda.is_available())"`.
+
+## Usage
+
+Train (saves the best model by validation Dice to `outputs/best_model.pt`):
+
+```
+python main.py --data_dir "path/to/data" --output_dir outputs --epochs 50 --batch_size 8
+```
+
+Evaluate (Dice on train/val, predicted masks and plots for all splits):
+
+```
+python evaluate.py --data_dir "path/to/data" --output_dir outputs
+```
+
+Useful options (see `args.py` for all of them):
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--img_size` | 256 | images and masks are resized to this square size |
+| `--bw` / `--depth` | 24 / 6 | U-Net basic width and depth |
+| `--lr` | 1e-3 | learning rate (Adam) |
+| `--device` | auto | `auto`, `cpu` or `cuda` |
+| `--checkpoint` | none | start from saved weights (fine-tuning) or evaluate another model |
+| `--freeze_encoder` | 0 | freeze the encoder when fine-tuning |
+
+## Method
+
+- **Model:** U-Net, 1 input channel, 1 output channel (logits), width 24, depth 6, batch norm.
+- **Loss:** binary cross-entropy + Dice loss (`dice_loss_from_logits` in `utils.py`).
+- **Metric:** Dice score at threshold 0.5 (`dice_score_from_logits`).
+- **Optimizer:** Adam, lr 1e-3, reduced on plateau of the validation Dice.
+- **Augmentation (train only):** horizontal flip, random shift up to 10 %, brightness/contrast jitter.
+- **Model selection:** the epoch with the best validation Dice is kept.
+
+## Results
+
+50 epochs, 256 x 256 input, batch size 8.
+
+| Split | Images | Mean Dice |
+|---|---|---|
+| Train | 80 | 0.985 |
+| Validation | 20 | 0.985 (std 0.005) |
+| Test | 50 | not computable: no ground-truth masks |
+
+Training curves are in `outputs/training_curves.png` and example predictions in
+`outputs/examples_val.png` and `outputs/examples_test.png`.
+
+## Credits
+
+- U-Net implementation: Aleksei Tiulpin, University of Oulu (https://github.com/lext/deep-pipeline).
+  The `Encoder`, `Decoder` and `conv_block_3x3` helpers in `model.py` are re-implementations
+  matching the way his `UNet` class uses them.
+- `utils.py` (Dice loss and score) provided by the course instructor.
